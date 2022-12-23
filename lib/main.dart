@@ -53,7 +53,7 @@ class _ArenaWidgetState extends State<ArenaWidget>
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
       final size = MediaQuery.of(context).size;
       final random = Random();
-      players = List.generate(2, (index) {
+      players = List.generate(10, (index) {
         final randomI = random.nextInt(3);
         final position = Position(
           random.nextInt(size.width.toInt() - 100) + 10,
@@ -235,17 +235,18 @@ class ArenaPainter extends CustomPainter {
 
   // An AI function to move every element towards its target
   // if target is not found then move randomly
-  void moveElements(Canvas canvas, Size size) {
-    moving?.call();
-    for (int i = 0; i < elements.length; i++) {
-      var element = elements[i];
-      moveTowardsTarget(element);
-      for (int j = 0; j < elements.length; j++) {
-        var other = elements[j];
-        detectCollisions(element, other);
-      }
-    }
-  }
+  // TODO: Issue here
+  // void moveElements(Canvas canvas, Size size) {
+  //   moving?.call();
+  //   for (int i = 0; i < elements.length; i++) {
+  //     var element = elements[i];
+  //     moveTowardsTarget(element);
+  //     for (int j = 0; j < elements.length; j++) {
+  //       var other = elements[j];
+  //       detectCollisions(element, other);
+  //     }
+  //   }
+  // }
 
   // detect collision between elements
   void detectCollisions(Element a, Element b) {
@@ -279,29 +280,58 @@ class ArenaPainter extends CustomPainter {
       }
     }
   }
-  // void handleCollision(){
-  //         for (int j = 0; j < elements.length; j++) {
-  //       var other = elements[j];
-  //       if (readyToFight(element, other)) {
-  //         printElementCounts();
-  //         var winner = fight(element, other);
-  //         onCollison!.call();
-  //         if (winner != other) {
-  //           int index = elements.indexOf(other);
-  //           final replaceElement = element.fromOther(other);
-  //           elements[index] = replaceElement;
-  //           // replace other with element
-  //           // elements.remove(other);
-  //         } else {
-  //           // replace element with other
-  //           int index = elements.indexOf(element);
-  //           if (index >= 0) {
-  //             elements[index] = other;
-  //           }
-  //         }
-  //       }
-  //     }
-  // }
+
+  void moveElements(Canvas canvas, Size size) {
+    moving?.call();
+    for (var i = 0; i < elements.length; i++) {
+      var element = elements[i];
+      // find nearest element of different type
+      Element targetElement = element;
+      int nearestDistance = 100000;
+      for (int j = 0; j < elements.length; j++) {
+        var other = elements[j];
+        int distance = element.distanceTo(other);
+        if (distance < nearestDistance && element.type != other.type) {
+          nearestDistance = distance;
+          targetElement = other;
+        }
+      }
+      final dx = targetElement.position.x - element.position.x;
+      final dy = targetElement.position.y - element.position.y;
+      if (nearestDistance > 0) {
+        // move element to _targetElement based on speed
+        final newPosition = Position(
+          element.position.x + dx * element.speed ~/ nearestDistance,
+          element.position.y + dy * element.speed ~/ nearestDistance,
+        );
+        element.position = newPosition;
+      }
+
+      // if two elements are in the same position, fight
+      for (int j = 0; j < elements.length; j++) {
+        var other = elements[j];
+        if (element.isColliding(other)) {
+          printElementCounts();
+          var winner = fight(element, other);
+          onCollison!.call();
+          if (winner != other) {
+            int index = elements.indexOf(other);
+            final replaceElement = element.replace(other);
+            elements[index] = replaceElement;
+            // replace other with element
+            // elements.remove(other);
+          } else {
+            // replace element with other
+            int index = elements.indexOf(element);
+            if (index >= 0) {
+              elements[index] = other;
+            }
+            // elements.remove(element);
+          }
+        }
+      }
+    }
+  }
 
   /// find nearest target element
   /// target should be of different type
@@ -535,5 +565,6 @@ class Position {
   @override
   // TODO: implement hashCode
   int get hashCode => super.hashCode;
+
 
 }
