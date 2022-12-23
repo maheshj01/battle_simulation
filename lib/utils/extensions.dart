@@ -1,5 +1,5 @@
+import 'package:battle_simulator/constants/constants.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_template/constants/constants.dart';
 import 'package:intl/intl.dart';
 
 extension StringExtension on String {
@@ -9,7 +9,7 @@ extension StringExtension on String {
 
   String initals() {
     /// Returns the first letter of each word in the string.
-    return this.split(' ').map((e) => e.capitalize()!.substring(0, 1)).join();
+    return split(' ').map((e) => e.capitalize()!.substring(0, 1)).join();
   }
 }
 

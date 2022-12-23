@@ -6,15 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-void main() => runApp(const MyApp());
+void main() => runApp(const BattelSimulation());
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class BattelSimulation extends StatelessWidget {
+  const BattelSimulation({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Rock Paper Scissor',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
@@ -53,7 +53,7 @@ class _ArenaWidgetState extends State<ArenaWidget>
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
       final size = MediaQuery.of(context).size;
       final random = Random();
-      players = List.generate(10, (index) {
+      players = List.generate(2, (index) {
         final randomI = random.nextInt(3);
         final position = Position(
           random.nextInt(size.width.toInt() - 100) + 10,
@@ -109,27 +109,30 @@ class _ArenaWidgetState extends State<ArenaWidget>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          CustomPaint(
-            painter: ArenaPainter(players,
-                onCollison: () {
-                  SystemSound.play(SystemSoundType.click);
-                },
-                moving: () async {},
-                gameOver: (ElementType winner) {
-                  holdBattle();
-                  SchedulerBinding.instance.addPostFrameCallback((timeStamp) {
-                    setState(() {
-                      players.clear();
-                      gameOver = true;
-                      gWinner = winner.name;
-                      isPlaying = false;
+          Align(
+            alignment: Alignment.center,
+            child: CustomPaint(
+              painter: ArenaPainter(players,
+                  onCollison: () {
+                    SystemSound.play(SystemSoundType.click);
+                  },
+                  moving: () async {},
+                  gameOver: (ElementType winner) {
+                    holdBattle();
+                    SchedulerBinding.instance.addPostFrameCallback((timeStamp) {
+                      setState(() {
+                        players.clear();
+                        gameOver = true;
+                        gWinner = winner.name;
+                        isPlaying = false;
+                      });
                     });
-                  });
-                  print("Game Over: ${winner.name} won");
-                }),
-            size: Size(
-              size.width - 100,
-              size.height - 100,
+                    print("Game Over: ${winner.name} won");
+                  }),
+              size: Size(
+                size.width,
+                size.height - 100,
+              ),
             ),
           ),
           Positioned(
@@ -178,8 +181,10 @@ class ArenaPainter extends CustomPainter {
   final VoidCallback? moving;
   ElementType? winner;
   int elementSize = 32;
-  Offset arenaX = Offset.zero;
-  Offset arenaY = Offset.zero;
+  int xMin = 10;
+  int yMin = 50;
+  int xMax = 0;
+  int yMax = 0;
   ArenaPainter(this.elements, {this.gameOver, this.onCollison, this.moving});
   @override
   void paint(Canvas canvas, Size size) {
@@ -187,32 +192,20 @@ class ArenaPainter extends CustomPainter {
       ..color = Colors.black
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
-    arenaX = Offset(10, size.width - 50);
-    arenaY = Offset(50, size.height - 100);
+    xMax = size.width.toInt() - 20;
+    yMax = size.height.toInt() - 100;
+
     // draw arena border
     canvas.drawRect(
-        Rect.fromLTWH(10, 50, size.width - 20, size.height - 100), paint);
+        Rect.fromLTWH(
+            xMin.toDouble(), yMin.toDouble(), xMax.toDouble(), yMax.toDouble()),
+        paint);
 
     layout(canvas, size);
     moveElements(canvas, size);
     layout(canvas, size);
     winner = isGameover();
     if (winner != null) {
-      //    layout(canvas, size);
-      /// paint game over text
-      // const textSpan = TextSpan(
-      //     text: 'Game Over',
-      //     style: TextStyle(
-      //       color: Colors.red,
-      //       fontSize: 30,
-      //     ));
-      // final textPainter = TextPainter(
-      //   text: textSpan,
-      //   textDirection: TextDirection.ltr,
-      // );
-      // textPainter.layout();
-      // textPainter.paint(
-      //     canvas, Offset(size.width / 2 - textPainter.width / 2, size.height / 2));
       gameOver?.call(winner!);
     }
     printElementCounts();
@@ -240,40 +233,82 @@ class ArenaPainter extends CustomPainter {
     return null;
   }
 
-  // move elements to nearest element of different type
-  // when two elements are in the same position, fight
-  // if one element losed, it is replaced by the winner
+  // An AI function to move every element towards its target
+  // if target is not found then move randomly
   void moveElements(Canvas canvas, Size size) {
     moving?.call();
-    for (var i = 0; i < elements.length; i++) {
+    for (int i = 0; i < elements.length; i++) {
       var element = elements[i];
       moveTowardsTarget(element);
-      // if two elements are close enough to fight in the same position, fight
       for (int j = 0; j < elements.length; j++) {
         var other = elements[j];
-        if (readyToFight(element, other)) {
-          printElementCounts();
-          var winner = fight(element, other);
-          onCollison!.call();
-          if (winner != other) {
-            int index = elements.indexOf(other);
-            final replaceElement = element.fromOther(other);
-            elements[index] = replaceElement;
-            // replace other with element
-            // elements.remove(other);
-          } else {
-            // replace element with other
-            int index = elements.indexOf(element);
-            if (index >= 0) {
-              elements[index] = other;
-            }
-          }
-        }
+        detectCollisions(element, other);
       }
     }
   }
 
-  Element findTargetELement(Element element) {
+  // detect collision between elements
+  void detectCollisions(Element a, Element b) {
+    var element = a;
+    var other = b;
+    if (element != other && element.type != other.type) {
+      print("element ${element.type} ${other.type}");
+      if (element.isColliding(other)) {
+        // onCollison?.call();
+        print("colision occured");
+        var winner = fight(element, other);
+        if (winner != other) {
+          // element wins
+          // replace other with element
+          int index = elements.indexOf(other);
+          final replaceElement = element.replace(other);
+          elements[index] = replaceElement;
+          // replace other with element
+          // elements.remove(other);
+        } else {
+          // other wins
+          // replace element with other
+          int index = elements.indexOf(element);
+          // if (index >= 0) {
+          final replaceElement = other.replace(element);
+          elements[index] = other;
+          // }
+        }
+      } else {
+        print("collision not occured ${a.distanceTo(b)}");
+      }
+    }
+  }
+  // void handleCollision(){
+  //         for (int j = 0; j < elements.length; j++) {
+  //       var other = elements[j];
+  //       if (readyToFight(element, other)) {
+  //         printElementCounts();
+  //         var winner = fight(element, other);
+  //         onCollison!.call();
+  //         if (winner != other) {
+  //           int index = elements.indexOf(other);
+  //           final replaceElement = element.fromOther(other);
+  //           elements[index] = replaceElement;
+  //           // replace other with element
+  //           // elements.remove(other);
+  //         } else {
+  //           // replace element with other
+  //           int index = elements.indexOf(element);
+  //           if (index >= 0) {
+  //             elements[index] = other;
+  //           }
+  //         }
+  //       }
+  //     }
+  // }
+
+  /// find nearest target element
+  /// target should be of different type
+  /// rock targets scissor
+  /// scissor targets paper
+  /// paper targets rock
+  Element findNearestTargetElement(Element element) {
     Element targetElement = element;
     int nearestDistance = 100000;
     for (int j = 0; j < elements.length; j++) {
@@ -284,35 +319,38 @@ class ArenaPainter extends CustomPainter {
         targetElement = other;
       }
     }
+    print("nearest target = $nearestDistance");
     return targetElement;
   }
 
   void moveTowardsTarget(Element element) {
-    Element targetElement = findTargetELement(element);
+    Element targetElement = findNearestTargetElement(element);
     final dx = targetElement.position.dx(element.position);
     final dy = targetElement.position.dy(element.position);
     final distanceToTarget = element.distanceTo(targetElement);
+
+    // move element to Target based on its speed
     if (distanceToTarget > 0) {
       // move element to _targetElement based on speed
       final newPosition = Position(
-        element.position.x + dx * element.speed ~/ distanceToTarget,
-        element.position.y + dy * element.speed ~/ distanceToTarget,
+        element.position.x += 1,
+        element.position.y += 1,
       );
 
       // if element is out of arena, move it back
-      if (newPosition.x < arenaX.dx) {
-        newPosition.x = arenaX.dx.toInt();
+      if (newPosition.x < xMin) {
+        newPosition.x = xMin;
         element.speed = -element.speed;
-      } else if (newPosition.x > arenaX.dy) {
+      } else if (newPosition.x > xMax) {
         element.speed = -element.speed;
-        newPosition.x = arenaX.dy.toInt();
+        newPosition.x = xMax;
       }
-      if (newPosition.y < arenaY.dx) {
-        newPosition.y = arenaY.dx.toInt();
+      if (newPosition.y < yMin) {
+        newPosition.y = yMin;
         element.speed = -element.speed;
-      } else if (newPosition.y >= arenaY.dy) {
+      } else if (newPosition.y >= yMax) {
         element.speed = -element.speed;
-        newPosition.y = arenaY.dy.toInt();
+        newPosition.y = yMax;
       }
       element.position = newPosition;
     }
@@ -328,15 +366,6 @@ class ArenaPainter extends CustomPainter {
     return Position(x.toInt(), y.toInt());
   }
 
-  bool readyToFight(Element a, Element b) {
-    // if positions are nearby in 5 pixels
-    return isNearBy(a, b) && a.type != b.type;
-  }
-
-  bool isNearBy(Element a, Element b) {
-    return a.distanceTo(b) < 10;
-  }
-
   void printElementCounts() {
     var rockCount = elements.where((element) => element.isRock).length;
     var paperCount = elements.where((element) => element.isPaper).length;
@@ -344,6 +373,7 @@ class ArenaPainter extends CustomPainter {
     debugPrint('rock: $rockCount, paper: $paperCount, scissor: $scissorCount');
   }
 
+  // paints elements on canvas
   void layout(Canvas canvas, Size size) {
     for (var i = 0; i < elements.length; i++) {
       var element = elements[i];
@@ -458,8 +488,17 @@ extension ElementExtension on Element {
   }
 
   // replace other with this
-  Element fromOther(Element other) {
+  Element replace(Element other) {
     return Element(type, name, icon, other.position, color, speed: speed);
+  }
+
+  // is colliding
+  bool isColliding(Element element) {
+    return isNearBy(element) && type != element.type;
+  }
+
+  bool isNearBy(Element a) {
+    return distanceTo(a) < 10;
   }
 }
 
@@ -492,4 +531,9 @@ class Position {
           runtimeType == other.runtimeType &&
           x == other.x &&
           y == other.y;
+
+  @override
+  // TODO: implement hashCode
+  int get hashCode => super.hashCode;
+
 }

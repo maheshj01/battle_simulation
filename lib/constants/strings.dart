@@ -1,4 +1,4 @@
 /// app string constants  from the UI go here in this page
 /// e.g
-const String appTitle = 'TITLE_OF_MY_APP';
+const String appTitle = 'Rock, Paper, Scissors battle simulator';
 const String dateFormatter = 'MMMM dd, y';
